@@ -221,7 +221,7 @@
         rocket.vx += steer * steerStrength * dt;
         if (pointerDown) {
           const desiredX = pointerCurrentX;
-          rocket.vx += (desiredX - rocket.x) * 26 * dt;
+          rocket.vx += (desiredX - rocket.x) * 18 * dt;
         }
         rocket.vx *= Math.pow(0.0001, dt * 0.32);
         rocket.vx = clamp(rocket.vx, -width * 0.84, width * 0.84);
@@ -559,18 +559,21 @@
         const barY = hudY + unit * 3.2;
         const barW = Math.min(width * 0.24, 120);
         const barH = unit * 1.6;
-        ctx.strokeStyle = "#f7f7ff";
+        ctx.strokeStyle = "#b8f6ff";
         ctx.lineWidth = 2;
         ctx.strokeRect(barX, barY, barW, barH);
         const fuelMax = 120;
         const innerPad = 3;
-        ctx.fillStyle = state.rocket.fuel > fuelMax * 0.25 ? "#ffe56b" : "#ff5a5a";
+        ctx.fillStyle = state.rocket.fuel > fuelMax * 0.25 ? "#47f5ff" : "#ff5a5a";
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = ctx.fillStyle;
         ctx.fillRect(
           barX + innerPad,
           barY + innerPad,
           (barW - innerPad * 2) * clamp(state.rocket.fuel / fuelMax, 0, 1),
           barH - innerPad * 2
         );
+        ctx.shadowBlur = 0;
 
         ctx.textAlign = "center";
         ctx.fillStyle = "#f7f7ff";
