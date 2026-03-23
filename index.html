@@ -69,6 +69,9 @@
       let unit = 6;
       let lastTime = 0;
       let pointerDown = false;
+      let pointerStartX = 0;
+      let pointerCurrentX = 0;
+      let pointerRocketStartX = 0;
       let shake = 0;
       let flash = 0;
       let bestScore = Number(localStorage.getItem(BEST_KEY) || 0);
@@ -218,6 +221,11 @@
         if (input.left) steer -= 1;
         if (input.right) steer += 1;
         rocket.vx += steer * steerStrength * dt;
+        if (pointerDown) {
+          const dragScale = 1.85;
+          const desiredX = pointerRocketStartX + (pointerCurrentX - pointerStartX) * dragScale;
+          rocket.vx += (desiredX - rocket.x) * 18 * dt;
+        }
         rocket.vx *= Math.pow(0.0001, dt * 0.32);
         rocket.vx = clamp(rocket.vx, -width * 0.84, width * 0.84);
         rocket.x += rocket.vx * dt;
@@ -594,7 +602,7 @@
 
         ctx.fillStyle = "#47f5ff";
         ctx.font = `${Math.max(9, unit * 1.45)}px "Press Start 2P"`;
-        ctx.fillText("TAP LEFT / RIGHT", width / 2, y + 74);
+        ctx.fillText("SLIDE LEFT / RIGHT", width / 2, y + 74);
         ctx.fillText("OR USE A / D", width / 2, y + 96);
 
         ctx.fillStyle = "#ffe56b";
@@ -721,17 +729,19 @@
 
       canvas.addEventListener("pointerdown", (event) => {
         pointerDown = true;
+        pointerStartX = event.clientX;
+        pointerCurrentX = event.clientX;
         handlePress(event.clientX, event.clientY);
         if (state.scene === "running") {
-          input.left = event.clientX < width * 0.5;
-          input.right = event.clientX >= width * 0.5;
+          pointerRocketStartX = state.rocket.x;
+          input.left = false;
+          input.right = false;
         }
       });
 
       canvas.addEventListener("pointermove", (event) => {
         if (!pointerDown || state.scene !== "running") return;
-        input.left = event.clientX < width * 0.5;
-        input.right = event.clientX >= width * 0.5;
+        pointerCurrentX = event.clientX;
       });
 
       canvas.addEventListener("pointerup", () => {
