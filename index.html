@@ -69,9 +69,6 @@
       let unit = 6;
       let lastTime = 0;
       let pointerDown = false;
-      let pointerStartX = 0;
-      let pointerLastX = 0;
-      let pointerSwipeDir = 0;
       let shake = 0;
       let flash = 0;
       let bestScore = Number(localStorage.getItem(BEST_KEY) || 0);
@@ -146,7 +143,6 @@
         state.gameOverAt = 0;
         shake = 0;
         flash = 0;
-        pointerSwipeDir = 0;
         state.rocket = {
           x: width / 2,
           y: height * 0.78,
@@ -221,7 +217,6 @@
         let steer = 0;
         if (input.left) steer -= 1;
         if (input.right) steer += 1;
-        if (!steer) steer = pointerSwipeDir;
         rocket.vx += steer * steerStrength * dt;
         rocket.vx *= Math.pow(0.0001, dt * 0.32);
         rocket.vx = clamp(rocket.vx, -width * 0.84, width * 0.84);
@@ -560,10 +555,17 @@
         const barW = Math.min(width * 0.24, 120);
         const barH = unit * 1.6;
         ctx.strokeStyle = "#f7f7ff";
+        ctx.lineWidth = 2;
         ctx.strokeRect(barX, barY, barW, barH);
         const fuelMax = 120;
+        const innerPad = 3;
         ctx.fillStyle = state.rocket.fuel > fuelMax * 0.25 ? "#ffe56b" : "#ff5a5a";
-        ctx.fillRect(barX + 2, barY + 2, (barW - 4) * clamp(state.rocket.fuel / fuelMax, 0, 1), barH - 4);
+        ctx.fillRect(
+          barX + innerPad,
+          barY + innerPad,
+          (barW - innerPad * 2) * clamp(state.rocket.fuel / fuelMax, 0, 1),
+          barH - innerPad * 2
+        );
 
         ctx.textAlign = "center";
         ctx.fillStyle = "#f7f7ff";
@@ -574,7 +576,38 @@
       }
 
       function drawTitle() {
-        drawCenteredPanel("ORBIT", "SWIPE OR A/D TO STEER", "TAP TO LAUNCH");
+        const panelW = Math.min(width * 0.9, 380);
+        const panelH = Math.min(height * 0.52, 360);
+        const x = (width - panelW) / 2;
+        const y = height * 0.12;
+        ctx.fillStyle = "rgba(5, 9, 20, 0.84)";
+        ctx.fillRect(x, y, panelW, panelH);
+        ctx.strokeStyle = "#ae56ff";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x, y, panelW, panelH);
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "#f7f7ff";
+        ctx.font = `${Math.max(18, unit * 3.2)}px "Press Start 2P"`;
+        ctx.fillText("ORBIT", width / 2, y + 20);
+
+        ctx.fillStyle = "#47f5ff";
+        ctx.font = `${Math.max(9, unit * 1.45)}px "Press Start 2P"`;
+        ctx.fillText("TAP LEFT / RIGHT", width / 2, y + 74);
+        ctx.fillText("OR USE A / D", width / 2, y + 96);
+
+        ctx.fillStyle = "#ffe56b";
+        ctx.fillText("SURVIVE AS LONG", width / 2, y + 136);
+        ctx.fillText("AS YOU CAN", width / 2, y + 158);
+
+        ctx.fillStyle = "#f7f7ff";
+        ctx.fillText("FUEL CAN = MORE FUEL", width / 2, y + 198);
+        ctx.fillText("CYAN RING = 1 HIT SHIELD", width / 2, y + 220);
+        ctx.fillText("DODGE ROCKS + ALIENS", width / 2, y + 242);
+
+        ctx.fillStyle = "#47f5ff";
+        ctx.fillText("TAP TO LAUNCH", width / 2, y + panelH - 48);
       }
 
       function drawGameOver() {
@@ -654,16 +687,6 @@
         requestAnimationFrame(frame);
       }
 
-      function setSwipeDirection(dx) {
-        const threshold = Math.max(18, width * 0.04);
-        if (Math.abs(dx) < threshold) {
-          pointerSwipeDir = 0;
-        } else {
-          const strength = clamp(Math.abs(dx) / (width * 0.2), 0, 1);
-          pointerSwipeDir = Math.sign(dx) * (0.4 + strength * 0.6);
-        }
-      }
-
       function handlePress(x, y) {
         if (state.scene === "title") {
           resetGame();
@@ -698,25 +721,29 @@
 
       canvas.addEventListener("pointerdown", (event) => {
         pointerDown = true;
-        pointerStartX = event.clientX;
-        pointerLastX = event.clientX;
         handlePress(event.clientX, event.clientY);
+        if (state.scene === "running") {
+          input.left = event.clientX < width * 0.5;
+          input.right = event.clientX >= width * 0.5;
+        }
       });
 
       canvas.addEventListener("pointermove", (event) => {
         if (!pointerDown || state.scene !== "running") return;
-        pointerLastX = event.clientX;
-        setSwipeDirection(pointerLastX - pointerStartX);
+        input.left = event.clientX < width * 0.5;
+        input.right = event.clientX >= width * 0.5;
       });
 
       canvas.addEventListener("pointerup", () => {
         pointerDown = false;
-        pointerSwipeDir = 0;
+        input.left = false;
+        input.right = false;
       });
 
       canvas.addEventListener("pointercancel", () => {
         pointerDown = false;
-        pointerSwipeDir = 0;
+        input.left = false;
+        input.right = false;
       });
 
       window.addEventListener("resize", resize);
