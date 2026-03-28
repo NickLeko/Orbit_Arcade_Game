@@ -49,6 +49,10 @@
       position: relative;
     }
 
+    [hidden] {
+      display: none !important;
+    }
+
     canvas {
       display: block;
       width: 100vw;
@@ -56,15 +60,83 @@
       image-rendering: pixelated;
       image-rendering: crisp-edges;
     }
+
+    #profile-overlay {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgba(4, 8, 18, 0.72);
+      z-index: 2;
+    }
+
+    #profile-form {
+      width: min(100%, 320px);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+      padding: 20px;
+      border: 3px solid var(--neon-cyan);
+      background: rgba(7, 16, 27, 0.95);
+      box-shadow: 0 0 24px rgba(71, 245, 255, 0.2);
+    }
+
+    #profile-form label {
+      color: var(--white);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    #profile-name {
+      width: 100%;
+      border: 3px solid var(--neon-yellow);
+      background: rgba(9, 17, 38, 0.96);
+      color: var(--white);
+      padding: 14px 12px;
+      font: inherit;
+      font-size: 14px;
+      text-align: center;
+      text-transform: uppercase;
+      outline: none;
+    }
+
+    #profile-name::placeholder {
+      color: rgba(247, 247, 255, 0.45);
+      text-transform: none;
+    }
+
+    #profile-submit {
+      border: 0;
+      padding: 14px 12px;
+      font: inherit;
+      font-size: 12px;
+      background: var(--neon-yellow);
+      color: #091126;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <canvas id="game" aria-label="ORBIT arcade game"></canvas>
+  <div id="profile-overlay" hidden>
+    <form id="profile-form" autocomplete="off">
+      <label for="profile-name">ENTER PILOT NAME</label>
+      <input id="profile-name" name="profile-name" type="text" maxlength="14" placeholder="Pilot name" required>
+      <button id="profile-submit" type="submit">SAVE PILOT</button>
+    </form>
+  </div>
   <script>
     (() => {
       const canvas = document.getElementById("game");
       const ctx = canvas.getContext("2d", { alpha: false });
+      const profileOverlay = document.getElementById("profile-overlay");
+      const profileForm = document.getElementById("profile-form");
+      const profileNameInput = document.getElementById("profile-name");
 
+      const SAVE_KEY = "orbit-save-v1";
+      const SAVE_VERSION = 1;
       const BEST_KEY = "orbit-best-seconds";
       const DPR = () => Math.max(1, Math.min(window.devicePixelRatio || 1, 2));
       const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
@@ -77,7 +149,9 @@
       let pointerCurrentX = 0;
       let shake = 0;
       let flash = 0;
-      let bestScore = Number(localStorage.getItem(BEST_KEY) || 0);
+      let saveData = null;
+      let legacyBestSeed = 0;
+      let bestScore = 0;
 
       const input = {
         left: false,
@@ -99,6 +173,179 @@
         gameOverAt: 0,
         deathReason: ""
       };
+
+      function gameOverButtons() {
+        const btnW = Math.min(width * 0.72, 250);
+        const btnH = unit * 8;
+        const btnX = (width - btnW) / 2;
+        const playY = height * 0.64;
+        const profileY = playY + btnH + unit * 2.2;
+        return {
+          play: { x: btnX, y: playY, w: btnW, h: btnH },
+          profile: { x: btnX, y: profileY, w: btnW, h: btnH }
+        };
+      }
+
+      function sanitizeName(name) {
+        return String(name || "")
+          .replace(/\s+/g, " ")
+          .trim()
+          .toUpperCase()
+          .slice(0, 14);
+      }
+
+      function createDefaultSave(name, migratedBestScore = 0) {
+        const now = new Date().toISOString();
+        return {
+          version: SAVE_VERSION,
+          profile: {
+            name: sanitizeName(name) || "PILOT",
+            createdAt: now,
+            lastPlayedAt: now
+          },
+          stats: {
+            bestScore: Math.max(0, Math.floor(migratedBestScore || 0)),
+            totalRuns: 0,
+            totalPlaySeconds: 0,
+            deaths: {
+              fuel: 0,
+              asteroid: 0,
+              alien: 0,
+              planet: 0
+            }
+          },
+          economy: {
+            coins: 0
+          },
+          inventory: {
+            ownedSkins: [],
+            equippedSkin: "default",
+            powerUps: {}
+          }
+        };
+      }
+
+      function normalizeSave(raw) {
+        if (!raw || typeof raw !== "object") return null;
+        const now = new Date().toISOString();
+        const stats = raw.stats && typeof raw.stats === "object" ? raw.stats : {};
+        const deaths = stats.deaths && typeof stats.deaths === "object" ? stats.deaths : {};
+        const inventory = raw.inventory && typeof raw.inventory === "object" ? raw.inventory : {};
+        const economy = raw.economy && typeof raw.economy === "object" ? raw.economy : {};
+        return {
+          version: SAVE_VERSION,
+          profile: {
+            name: sanitizeName(raw.profile?.name) || "PILOT",
+            createdAt: typeof raw.profile?.createdAt === "string" ? raw.profile.createdAt : now,
+            lastPlayedAt: typeof raw.profile?.lastPlayedAt === "string" ? raw.profile.lastPlayedAt : now
+          },
+          stats: {
+            bestScore: Math.max(0, Math.floor(Number(stats.bestScore) || 0)),
+            totalRuns: Math.max(0, Math.floor(Number(stats.totalRuns) || 0)),
+            totalPlaySeconds: Math.max(0, Math.floor(Number(stats.totalPlaySeconds) || 0)),
+            deaths: {
+              fuel: Math.max(0, Math.floor(Number(deaths.fuel) || 0)),
+              asteroid: Math.max(0, Math.floor(Number(deaths.asteroid) || 0)),
+              alien: Math.max(0, Math.floor(Number(deaths.alien) || 0)),
+              planet: Math.max(0, Math.floor(Number(deaths.planet) || 0))
+            }
+          },
+          economy: {
+            coins: Math.max(0, Math.floor(Number(economy.coins) || 0))
+          },
+          inventory: {
+            ownedSkins: Array.isArray(inventory.ownedSkins) ? inventory.ownedSkins.filter((skin) => typeof skin === "string") : [],
+            equippedSkin: typeof inventory.equippedSkin === "string" ? inventory.equippedSkin : "default",
+            powerUps: inventory.powerUps && typeof inventory.powerUps === "object" ? inventory.powerUps : {}
+          }
+        };
+      }
+
+      function persistSave() {
+        if (!saveData) return;
+        try {
+          localStorage.setItem(SAVE_KEY, JSON.stringify(saveData));
+        } catch (_error) {
+          // Keep gameplay working even if storage is unavailable.
+        }
+      }
+
+      function loadSave() {
+        try {
+          const raw = localStorage.getItem(SAVE_KEY);
+          if (raw) {
+            const normalized = normalizeSave(JSON.parse(raw));
+            if (normalized) {
+              localStorage.setItem(SAVE_KEY, JSON.stringify(normalized));
+              return normalized;
+            }
+          }
+        } catch (_error) {
+          // Ignore malformed save data and fall back to a fresh local profile.
+        }
+        try {
+          legacyBestSeed = Math.max(0, Math.floor(Number(localStorage.getItem(BEST_KEY)) || 0));
+        } catch (_error) {
+          legacyBestSeed = 0;
+        }
+        return null;
+      }
+
+      function applySave(nextSave) {
+        saveData = nextSave;
+        bestScore = saveData ? saveData.stats.bestScore : legacyBestSeed;
+      }
+
+      function setScene(scene) {
+        state.scene = scene;
+        const isProfileScene = scene === "profile";
+        profileOverlay.hidden = !isProfileScene;
+        if (isProfileScene) {
+          requestAnimationFrame(() => profileNameInput.focus());
+        }
+      }
+
+      function recordRunStart() {
+        if (!saveData) return;
+        saveData.stats.totalRuns += 1;
+        saveData.profile.lastPlayedAt = new Date().toISOString();
+        persistSave();
+      }
+
+      function recordRunEnd(reason, elapsed) {
+        if (!saveData) return;
+        const score = Math.max(0, Math.floor(elapsed));
+        saveData.stats.totalPlaySeconds += score;
+        if (Object.prototype.hasOwnProperty.call(saveData.stats.deaths, reason)) {
+          saveData.stats.deaths[reason] += 1;
+        }
+        if (score > saveData.stats.bestScore) {
+          saveData.stats.bestScore = score;
+        }
+        saveData.profile.lastPlayedAt = new Date().toISOString();
+        bestScore = saveData.stats.bestScore;
+        persistSave();
+      }
+
+      function startRun() {
+        resetGame();
+        recordRunStart();
+      }
+
+      function formatPlayTime(totalSeconds) {
+        const seconds = Math.max(0, Math.floor(totalSeconds || 0));
+        if (seconds >= 3600) {
+          const hours = Math.floor(seconds / 3600);
+          const minutes = Math.floor((seconds % 3600) / 60);
+          return `${hours}H ${String(minutes).padStart(2, "0")}M`;
+        }
+        if (seconds >= 60) {
+          const minutes = Math.floor(seconds / 60);
+          const remain = seconds % 60;
+          return `${minutes}M ${String(remain).padStart(2, "0")}S`;
+        }
+        return `${seconds}S`;
+      }
 
       function resize() {
         const dpr = DPR();
@@ -140,7 +387,7 @@
       }
 
       function resetGame() {
-        state.scene = "running";
+        setScene("running");
         state.elapsed = 0;
         state.worldSpeed = 328;
         state.spawnTimer = 0.55;
@@ -312,8 +559,10 @@
           } else if (obj.type === "alien") {
             obj.phase += dt * obj.drift;
             obj.x += Math.sin(obj.phase) * obj.amp * dt;
-          } else {
+          } else if (obj.type === "fuel" || obj.type === "shield") {
             obj.pulse += dt * 4;
+          } else if (obj.type === "planet") {
+            obj.ringTilt += Math.sin((obj.y + state.elapsed * 80) * 0.01) * dt * 0.045;
           }
 
           if (obj.y > height + 120) {
@@ -390,18 +639,14 @@
 
       function endRun(reason) {
         if (state.scene !== "running") return;
-        state.scene = "gameover";
+        setScene("gameover");
         state.gameOverAt = performance.now() * 0.001;
         state.deathReason = reason;
         shake = 12;
         flash = 1;
         spawnExplosion(state.rocket.x, state.rocket.y);
         state.rocket.alive = false;
-        const score = Math.floor(state.elapsed);
-        if (score > bestScore) {
-          bestScore = score;
-          localStorage.setItem(BEST_KEY, String(bestScore));
-        }
+        recordRunEnd(reason, state.elapsed);
       }
 
       function checkCollision(rocket, obj) {
@@ -687,10 +932,40 @@
       }
 
       function drawTitle() {
+        const statsW = Math.min(width * 0.82, 320);
+        const statsH = Math.min(height * 0.22, 142);
+        const statsX = (width - statsW) / 2;
+        const statsY = height * 0.07;
         const panelW = Math.min(width * 0.9, 380);
-        const panelH = Math.min(height * 0.52, 360);
+        const panelH = Math.min(height * 0.5, 320);
         const x = (width - panelW) / 2;
-        const y = height * 0.12;
+        const y = statsY + statsH + Math.max(14, unit * 2.2);
+        const profileName = saveData?.profile.name || "PILOT";
+        const totalRuns = saveData?.stats.totalRuns || 0;
+        const playTime = formatPlayTime(saveData?.stats.totalPlaySeconds || 0);
+
+        ctx.fillStyle = "rgba(5, 9, 20, 0.84)";
+        ctx.fillRect(statsX, statsY, statsW, statsH);
+        ctx.strokeStyle = "#47f5ff";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(statsX, statsY, statsW, statsH);
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "#f7f7ff";
+        ctx.font = `${Math.max(10, unit * 1.45)}px "Press Start 2P"`;
+        ctx.fillText("PROFILE", width / 2, statsY + 16);
+
+        ctx.fillStyle = "#ff9c47";
+        ctx.font = `${Math.max(8, unit * 1.18)}px "Press Start 2P"`;
+        ctx.fillText("PILOT " + profileName, width / 2, statsY + 44);
+        ctx.fillStyle = "#ffe56b";
+        ctx.fillText("BEST " + bestScore + "s", width / 2, statsY + 70);
+        ctx.fillStyle = "#f7f7ff";
+        ctx.fillText("RUNS " + totalRuns, width / 2, statsY + 94);
+        ctx.fillStyle = "#47f5ff";
+        ctx.fillText("PLAY " + playTime, width / 2, statsY + 118);
+
         ctx.fillStyle = "rgba(5, 9, 20, 0.84)";
         ctx.fillRect(x, y, panelW, panelH);
         ctx.strokeStyle = "#ae56ff";
@@ -718,7 +993,34 @@
         ctx.fillText("DODGE ROCKS + ALIENS", width / 2, y + 242);
 
         ctx.fillStyle = "#47f5ff";
-        ctx.fillText("TAP TO LAUNCH", width / 2, y + panelH - 48);
+        ctx.fillText("TAP TO LAUNCH", width / 2, y + panelH - 40);
+      }
+
+      function drawProfileSetup() {
+        const panelW = Math.min(width * 0.88, 360);
+        const panelH = Math.min(height * 0.44, 280);
+        const x = (width - panelW) / 2;
+        const y = height * 0.18;
+        ctx.fillStyle = "rgba(5, 9, 20, 0.88)";
+        ctx.fillRect(x, y, panelW, panelH);
+        ctx.strokeStyle = "#47f5ff";
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x, y, panelW, panelH);
+
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "#f7f7ff";
+        ctx.font = `${Math.max(16, unit * 2.8)}px "Press Start 2P"`;
+        ctx.fillText("NEW PILOT", width / 2, y + 24);
+
+        ctx.fillStyle = "#ffe56b";
+        ctx.font = `${Math.max(9, unit * 1.4)}px "Press Start 2P"`;
+        ctx.fillText("SAVE STATS ON", width / 2, y + 94);
+        ctx.fillText("THIS DEVICE", width / 2, y + 116);
+
+        ctx.fillStyle = "#47f5ff";
+        ctx.fillText("NAME BELOW TO", width / 2, y + 166);
+        ctx.fillText("START YOUR PROFILE", width / 2, y + 188);
       }
 
       function drawGameOver() {
@@ -729,20 +1031,26 @@
           "TIME " + score + "s",
           "BEST " + bestScore + "s"
         );
-        const btnW = Math.min(width * 0.72, 250);
-        const btnH = unit * 8;
-        const btnX = (width - btnW) / 2;
-        const btnY = height * 0.68;
+        const buttons = gameOverButtons();
+
         ctx.fillStyle = "#47f5ff";
         ctx.shadowBlur = 16;
         ctx.shadowColor = "#47f5ff";
-        ctx.fillRect(btnX, btnY, btnW, btnH);
+        ctx.fillRect(buttons.play.x, buttons.play.y, buttons.play.w, buttons.play.h);
         ctx.shadowBlur = 0;
         ctx.fillStyle = "#091126";
         ctx.font = `${Math.max(12, unit * 2)}px "Press Start 2P"`;
         ctx.textAlign = "center";
         ctx.textBaseline = "middle";
-        ctx.fillText("PLAY AGAIN", width / 2, btnY + btnH / 2 + 1);
+        ctx.fillText("PLAY AGAIN", width / 2, buttons.play.y + buttons.play.h / 2 + 1);
+
+        ctx.fillStyle = "#ffe56b";
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = "#ffe56b";
+        ctx.fillRect(buttons.profile.x, buttons.profile.y, buttons.profile.w, buttons.profile.h);
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = "#091126";
+        ctx.fillText("PROFILE", width / 2, buttons.profile.y + buttons.profile.h / 2 + 1);
       }
 
       function deathReasonLabel(reason) {
@@ -794,12 +1102,13 @@
 
         if (state.rocket?.alive) drawRocket(state.rocket);
         drawParticles();
-        drawHud();
+        if (state.scene !== "profile") drawHud();
         if (flash > 0) {
           ctx.fillStyle = `rgba(255,255,255,${flash * 0.22})`;
           ctx.fillRect(0, 0, width, height);
         }
 
+        if (state.scene === "profile") drawProfileSetup();
         if (state.scene === "title") drawTitle();
         if (state.scene === "gameover") drawGameOver();
         ctx.restore();
@@ -816,28 +1125,40 @@
 
       function handlePress(x, y) {
         if (state.scene === "title") {
-          resetGame();
+          startRun();
           return;
         }
         if (state.scene === "gameover") {
-          const btnW = Math.min(width * 0.72, 250);
-          const btnH = unit * 8;
-          const btnX = (width - btnW) / 2;
-          const btnY = height * 0.68;
-          if (x >= btnX && x <= btnX + btnW && y >= btnY && y <= btnY + btnH) {
-            resetGame();
+          const buttons = gameOverButtons();
+          if (
+            x >= buttons.play.x &&
+            x <= buttons.play.x + buttons.play.w &&
+            y >= buttons.play.y &&
+            y <= buttons.play.y + buttons.play.h
+          ) {
+            startRun();
+            return;
+          }
+          if (
+            x >= buttons.profile.x &&
+            x <= buttons.profile.x + buttons.profile.w &&
+            y >= buttons.profile.y &&
+            y <= buttons.profile.y + buttons.profile.h
+          ) {
+            setScene("title");
           }
         }
       }
 
       window.addEventListener("keydown", (event) => {
+        if (state.scene === "profile") return;
         if (["ArrowLeft", "ArrowRight", " ", "Enter"].includes(event.key)) {
           event.preventDefault();
         }
         if (event.key === "ArrowLeft" || event.key === "a" || event.key === "A") input.left = true;
         if (event.key === "ArrowRight" || event.key === "d" || event.key === "D") input.right = true;
         if ((event.key === " " || event.key === "Enter") && state.scene !== "running") {
-          resetGame();
+          startRun();
         }
       });
 
@@ -873,11 +1194,27 @@
         input.right = false;
       });
 
+      profileForm.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const name = sanitizeName(profileNameInput.value);
+        if (!name) {
+          profileNameInput.focus();
+          return;
+        }
+        applySave(createDefaultSave(name, legacyBestSeed));
+        legacyBestSeed = 0;
+        persistSave();
+        profileNameInput.value = "";
+        resetGame();
+        setScene("title");
+      });
+
       window.addEventListener("resize", resize);
 
+      applySave(loadSave());
       resize();
       resetGame();
-      state.scene = "title";
+      setScene(saveData ? "title" : "profile");
       requestAnimationFrame(frame);
     })();
   </script>
