@@ -565,20 +565,31 @@
 
         const barX = 18;
         const barY = hudY + unit * 3.2;
-        const barW = Math.min(width * 0.24, 120);
-        const barH = unit * 1.6;
-        ctx.strokeStyle = "#ff7de9";
+        const barW = Math.min(width * 0.265, 132);
+        const barH = unit * 1.8;
+        ctx.fillStyle = "rgba(36, 27, 4, 0.92)";
+        ctx.fillRect(barX, barY, barW, barH);
+        ctx.strokeStyle = "#ffe56b";
         ctx.lineWidth = 2;
         ctx.strokeRect(barX, barY, barW, barH);
         const fuelMax = 120;
         const innerPad = 3;
-        ctx.fillStyle = state.rocket.fuel > fuelMax * 0.25 ? "#ff4fd8" : "#ff5a5a";
-        ctx.shadowBlur = 12;
-        ctx.shadowColor = ctx.fillStyle;
+        const fuelRatio = clamp(state.rocket.fuel / fuelMax, 0, 1);
+        const fuelGradient = ctx.createLinearGradient(barX, barY, barX + barW, barY);
+        if (fuelRatio > 0.25) {
+          fuelGradient.addColorStop(0, "#fff1a6");
+          fuelGradient.addColorStop(1, "#ffbf38");
+        } else {
+          fuelGradient.addColorStop(0, "#ffd36b");
+          fuelGradient.addColorStop(1, "#ff7a47");
+        }
+        ctx.fillStyle = fuelGradient;
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = fuelRatio > 0.25 ? "#ffd54f" : "#ff8f5a";
         ctx.fillRect(
           barX + innerPad,
           barY + innerPad,
-          (barW - innerPad * 2) * clamp(state.rocket.fuel / fuelMax, 0, 1),
+          (barW - innerPad * 2) * fuelRatio,
           barH - innerPad * 2
         );
         ctx.shadowBlur = 0;
