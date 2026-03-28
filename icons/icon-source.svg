@@ -1,0 +1,43 @@
+<svg width="512" height="512" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="88" y1="64" x2="432" y2="448" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#111B2B"/>
+      <stop offset="1" stop-color="#07101B"/>
+    </linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(256 226) rotate(90) scale(176)">
+      <stop stop-color="#1A2E4B"/>
+      <stop offset="1" stop-color="#1A2E4B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="body" x1="197" y1="92" x2="315" y2="388" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E5EAF2"/>
+    </linearGradient>
+    <linearGradient id="fin" x1="173" y1="248" x2="216" y2="344" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#78D9FF"/>
+      <stop offset="1" stop-color="#2C8FFF"/>
+    </linearGradient>
+    <linearGradient id="flameOuter" x1="256" y1="353" x2="256" y2="452" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFBF6B"/>
+      <stop offset="1" stop-color="#FF6A3D"/>
+    </linearGradient>
+    <linearGradient id="flameInner" x1="256" y1="366" x2="256" y2="431" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF4BF"/>
+      <stop offset="1" stop-color="#FFD15C"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="226" r="176" fill="url(#halo)"/>
+  <circle cx="158" cy="140" r="7" fill="#D9E8FF" fill-opacity="0.9"/>
+  <circle cx="362" cy="118" r="5" fill="#90C6FF" fill-opacity="0.9"/>
+  <circle cx="384" cy="182" r="4" fill="#D9E8FF" fill-opacity="0.75"/>
+  <circle cx="126" cy="216" r="4" fill="#90C6FF" fill-opacity="0.75"/>
+  <path d="M256 452C229 420 221 390 238 353H274C291 390 283 420 256 452Z" fill="url(#flameOuter)"/>
+  <path d="M256 431C239 410 236 388 246 366H266C276 388 273 410 256 431Z" fill="url(#flameInner)"/>
+  <path d="M220 327H292L280 353H232L220 327Z" fill="#273447"/>
+  <path d="M197 248L146 310C137 321 141 344 158 344H204L216 300L197 248Z" fill="url(#fin)"/>
+  <path d="M315 248L366 310C375 321 371 344 354 344H308L296 300L315 248Z" fill="url(#fin)"/>
+  <path d="M256 92C212 132 197 186 197 246V320L256 388L315 320V246C315 186 300 132 256 92Z" fill="url(#body)"/>
+  <path d="M256 92C300 132 315 186 315 246V320L256 388V92Z" fill="#D9E0EA"/>
+  <circle cx="256" cy="214" r="32" fill="#6BE2FF"/>
+  <circle cx="244" cy="202" r="9" fill="#FFFFFF" fill-opacity="0.75"/>
+</svg>
