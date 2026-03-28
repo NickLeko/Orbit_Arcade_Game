@@ -91,11 +91,13 @@
         spawnTimer: 0,
         fuelSpawnTimer: 0,
         powerSpawnTimer: 0,
+        planetSpawnTimer: 0,
         stars: [],
         objects: [],
         particles: [],
         rocket: null,
-        gameOverAt: 0
+        gameOverAt: 0,
+        deathReason: ""
       };
 
       function resize() {
@@ -144,9 +146,11 @@
         state.spawnTimer = 0.55;
         state.fuelSpawnTimer = 3;
         state.powerSpawnTimer = 6;
+        state.planetSpawnTimer = 8.5;
         state.objects = [];
         state.particles = [];
         state.gameOverAt = 0;
+        state.deathReason = "";
         shake = 0;
         flash = 0;
         state.rocket = {
@@ -194,7 +198,7 @@
           type: "fuel",
           x: rand(unit * 4, width - unit * 4),
           y: -unit * 6,
-          r: unit * 3,
+          r: unit * 3.6,
           pulse: rand(0, Math.PI * 2)
         });
       }
@@ -209,12 +213,33 @@
         });
       }
 
+      function spawnPlanet() {
+        const size = rand(unit * 6.2, unit * 8.2);
+        const palettes = [
+          { body: "#4dc7ff", band: "#d9f4ff", ring: "#ffe56b", accent: "#1e5f9d" },
+          { body: "#ff8d6b", band: "#ffd5a6", ring: "#8cddff", accent: "#a74328" },
+          { body: "#9a7dff", band: "#f4e0ff", ring: "#ffb86b", accent: "#5231b7" },
+          { body: "#7ee39f", band: "#dbffe7", ring: "#6ebdff", accent: "#237a47" }
+        ];
+        state.objects.push({
+          type: "planet",
+          x: rand(size, width - size),
+          y: -size - rand(60, 180),
+          r: size * 0.56,
+          size,
+          speedMul: rand(0.84, 0.98),
+          ringTilt: rand(-0.3, 0.3),
+          palette: palettes[(Math.random() * palettes.length) | 0]
+        });
+      }
+
       function updateRunning(dt) {
         state.elapsed += dt;
         state.worldSpeed += dt * 8;
         state.spawnTimer -= dt;
         state.fuelSpawnTimer -= dt;
         state.powerSpawnTimer -= dt;
+        state.planetSpawnTimer -= dt;
         flash = Math.max(0, flash - dt * 1.2);
         shake = Math.max(0, shake - dt * 18);
 
@@ -261,6 +286,11 @@
         if (state.powerSpawnTimer <= 0) {
           spawnPower();
           state.powerSpawnTimer = rand(8.5, 13.5);
+        }
+
+        if (state.planetSpawnTimer <= 0) {
+          spawnPlanet();
+          state.planetSpawnTimer = rand(9.5, 14);
         }
 
         for (const layer of state.stars) {
@@ -362,6 +392,7 @@
         if (state.scene !== "running") return;
         state.scene = "gameover";
         state.gameOverAt = performance.now() * 0.001;
+        state.deathReason = reason;
         shake = 12;
         flash = 1;
         spawnExplosion(state.rocket.x, state.rocket.y);
@@ -508,6 +539,48 @@
         ctx.restore();
       }
 
+      function drawPlanet(obj) {
+        ctx.save();
+        ctx.translate(Math.round(obj.x), Math.round(obj.y));
+        const r = obj.r;
+        const { body, band, ring, accent } = obj.palette;
+
+        ctx.strokeStyle = ring;
+        ctx.lineWidth = Math.max(2, unit * 0.55);
+        ctx.globalAlpha = 0.65;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r * 1.45, r * 0.48, obj.ringTilt, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+
+        ctx.shadowBlur = 14;
+        ctx.shadowColor = ring;
+        ctx.fillStyle = body;
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.shadowBlur = 0;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(0, 0, r, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.fillStyle = band;
+        ctx.fillRect(-r * 0.95, -r * 0.45, r * 1.9, r * 0.3);
+        ctx.fillRect(-r * 0.8, r * 0.05, r * 1.6, r * 0.2);
+        ctx.fillStyle = accent;
+        ctx.fillRect(-r * 0.4, -r * 0.92, r * 0.52, r * 0.42);
+        ctx.fillRect(r * 0.18, 0, r * 0.34, r * 0.34);
+        ctx.restore();
+
+        ctx.strokeStyle = ring;
+        ctx.lineWidth = Math.max(2, unit * 0.5);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r * 1.18, r * 0.34, obj.ringTilt, Math.PI * 0.12, Math.PI * 0.88);
+        ctx.stroke();
+        ctx.restore();
+      }
+
       function drawPickup(obj) {
         const colors = {
           fuel: "#ffe56b",
@@ -523,14 +596,15 @@
         ctx.strokeStyle = glow;
         ctx.fillStyle = glow;
         if (obj.type === "fuel") {
-          ctx.fillRect(-unit * 1.4, -unit * 1.8, unit * 2.6, unit * 3.4);
-          ctx.fillRect(unit * 0.7, -unit * 1.2, unit * 0.7, unit * 0.9);
+          const fuelScale = 1.2;
+          ctx.fillRect(-unit * 1.4 * fuelScale, -unit * 1.8 * fuelScale, unit * 2.6 * fuelScale, unit * 3.4 * fuelScale);
+          ctx.fillRect(unit * 0.7 * fuelScale, -unit * 1.2 * fuelScale, unit * 0.7 * fuelScale, unit * 0.9 * fuelScale);
           ctx.fillStyle = "#091126";
-          ctx.fillRect(-unit * 0.55, -unit * 0.35, unit * 1.1, unit * 1.1);
-          ctx.fillRect(unit * 0.55, -unit * 1.15, unit * 0.35, unit * 0.35);
+          ctx.fillRect(-unit * 0.55 * fuelScale, -unit * 0.35 * fuelScale, unit * 1.1 * fuelScale, unit * 1.1 * fuelScale);
+          ctx.fillRect(unit * 0.55 * fuelScale, -unit * 1.15 * fuelScale, unit * 0.35 * fuelScale, unit * 0.35 * fuelScale);
           ctx.fillStyle = glow;
-          ctx.fillRect(-unit * 0.15, -unit * 1.15, unit * 0.3, unit * 0.9);
-          ctx.fillRect(-unit * 0.85, unit * 0.1, unit * 1.7, unit * 0.28);
+          ctx.fillRect(-unit * 0.15 * fuelScale, -unit * 1.15 * fuelScale, unit * 0.3 * fuelScale, unit * 0.9 * fuelScale);
+          ctx.fillRect(-unit * 0.85 * fuelScale, unit * 0.1 * fuelScale, unit * 1.7 * fuelScale, unit * 0.28 * fuelScale);
         } else if (obj.type === "shield") {
           ctx.beginPath();
           ctx.arc(0, 0, unit * 2.2, 0, Math.PI * 2);
@@ -575,6 +649,16 @@
         const fuelMax = 120;
         const innerPad = 3;
         const fuelRatio = clamp(state.rocket.fuel / fuelMax, 0, 1);
+        if (fuelRatio <= 0.25) {
+          const warningPulse = 0.45 + ((Math.sin(state.elapsed * 10) + 1) * 0.5) * 0.55;
+          ctx.save();
+          ctx.strokeStyle = `rgba(255, 157, 71, ${warningPulse})`;
+          ctx.lineWidth = 3;
+          ctx.shadowBlur = 18;
+          ctx.shadowColor = "#ff9d47";
+          ctx.strokeRect(barX - 2, barY - 2, barW + 4, barH + 4);
+          ctx.restore();
+        }
         const fuelGradient = ctx.createLinearGradient(barX, barY, barX + barW, barY);
         if (fuelRatio > 0.25) {
           fuelGradient.addColorStop(0, "#fff1a6");
@@ -639,7 +723,12 @@
 
       function drawGameOver() {
         const score = Math.floor(state.elapsed);
-        drawCenteredPanel("GAME OVER", "TIME " + score + "s", "BEST " + bestScore + "s");
+        drawCenteredPanel(
+          "GAME OVER",
+          deathReasonLabel(state.deathReason),
+          "TIME " + score + "s",
+          "BEST " + bestScore + "s"
+        );
         const btnW = Math.min(width * 0.72, 250);
         const btnH = unit * 8;
         const btnX = (width - btnW) / 2;
@@ -656,9 +745,17 @@
         ctx.fillText("PLAY AGAIN", width / 2, btnY + btnH / 2 + 1);
       }
 
-      function drawCenteredPanel(title, line1, line2) {
+      function deathReasonLabel(reason) {
+        if (reason === "fuel") return "OUT OF FUEL";
+        if (reason === "asteroid") return "HIT BY ASTEROID";
+        if (reason === "alien") return "HIT BY ALIEN";
+        if (reason === "planet") return "HIT BY PLANET";
+        return "RUN OVER";
+      }
+
+      function drawCenteredPanel(title, line1, line2, line3) {
         const panelW = Math.min(width * 0.86, 340);
-        const panelH = Math.min(height * 0.34, 240);
+        const panelH = Math.min(height * 0.38, 272);
         const x = (width - panelW) / 2;
         const y = height * 0.2;
         ctx.fillStyle = "rgba(5, 9, 20, 0.8)";
@@ -672,11 +769,13 @@
         ctx.fillStyle = "#f7f7ff";
         ctx.font = `${Math.max(18, unit * 3.2)}px "Press Start 2P"`;
         ctx.fillText(title, width / 2, y + 24);
+        ctx.font = `${Math.max(9, unit * 1.5)}px "Press Start 2P"`;
+        ctx.fillStyle = "#ff9c47";
+        ctx.fillText(line1, width / 2, y + panelH * 0.42);
         ctx.fillStyle = "#47f5ff";
-        ctx.font = `${Math.max(10, unit * 1.7)}px "Press Start 2P"`;
-        ctx.fillText(line1, width / 2, y + panelH * 0.48);
+        ctx.fillText(line2, width / 2, y + panelH * 0.58);
         ctx.fillStyle = "#ffe56b";
-        ctx.fillText(line2, width / 2, y + panelH * 0.68);
+        ctx.fillText(line3, width / 2, y + panelH * 0.72);
       }
 
       function render() {
@@ -689,6 +788,7 @@
         for (const obj of state.objects) {
           if (obj.type === "asteroid") drawAsteroid(obj);
           else if (obj.type === "alien") drawAlien(obj);
+          else if (obj.type === "planet") drawPlanet(obj);
           else drawPickup(obj);
         }
 
